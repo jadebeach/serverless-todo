@@ -59,15 +59,33 @@ Resources:
             Path: /todos
             Method: post
 
+  GetTodosFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/get_todos/
+      Handler: app.lambda_handler
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref TodoTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TodoTable
+      Events:
+        GetTodos:
+          Type: Api
+          Properties:
+            Path: /todos
+            Method: get
+
 Outputs:
   TodoTableName:
     Description: DynamoDB Table Name
     Value: !Ref TodoTable
-  
+
   TodoTableArn:
     Description: DynamoDB Table ARN
     Value: !GetAtt TodoTable.Arn
-  
+
   ApiUrl:
     Description: API Gateway endpoint URL
     Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/'
