@@ -77,6 +77,42 @@ Resources:
             Path: /todos
             Method: get
 
+    UpdateTodoFunction:
+      Type: AWS::Serverless::Function
+      Properties:
+        CodeUri: functions/update_todo/
+        Handler: app.lambda_handler
+        Environment:
+          Variables:
+            TABLE_NAME: !Ref TodoTable
+        Policies:
+          - DynamoDBCrudPolicy:
+              TableName: !Ref TodoTable
+        Events:
+          UpdateTodo:
+            Type: Api
+            Properties:
+              Path: /todos/{taskId}
+              Method: put
+  
+    DeleteTodoFunction:
+      Type: AWS::Serverless::Function
+      Properties:
+        CodeUri: functions/delete_todo/
+        Handler: app.lambda_handler
+        Environment:
+          Variables:
+            TABLE_NAME: !Ref TodoTable
+        Policies:
+          - DynamoDBCrudPolicy:
+              TableName: !Ref TodoTable
+        Events:
+          DeleteTodo:
+            Type: Api
+            Properties:
+              Path: /todos/{taskId}
+              Method: delete
+
 Outputs:
   TodoTableName:
     Description: DynamoDB Table Name
