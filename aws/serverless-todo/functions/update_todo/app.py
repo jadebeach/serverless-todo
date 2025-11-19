@@ -58,7 +58,7 @@ def lambda_handler(event, context):
         print(f"Update request for taskId={task_id}, body={body}")
         
         # ユーザーID取得（後でCognitoから）
-        user_id = 'test-user-001'
+        user_id = get_user_id_from_event(event)
         
         # タスクを検索
         existing_task = find_task_by_id(user_id, task_id)
@@ -184,3 +184,4 @@ def lambda_handler(event, context):
             'error': 'Internal server error',
             'message': str(e)
         })
+
