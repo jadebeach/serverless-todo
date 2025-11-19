@@ -41,6 +41,17 @@ Resources:
           Projection:
             ProjectionType: ALL
 
+  TodoUserPoolClient:
+    Type: AWS::Serverless::Function
+    Properties:
+      ClientName: !Sub '${AWS::StackName}-client'
+      UserPoolId: !Ref TodoUserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      PreventUserExistenceErrors: ENABLED
+
   CreateTodoFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -114,6 +125,14 @@ Resources:
               Method: delete
 
 Outputs:
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref TodoUserPool
+
+  UserPoolCLientId:
+    Description: Cognito User Pool Client ID
+    Value: !Ref TodoUserClientPool
+    
   TodoTableName:
     Description: DynamoDB Table Name
     Value: !Ref TodoTable
