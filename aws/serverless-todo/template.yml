@@ -11,7 +11,57 @@ Globals:
         POWERTOOLS_SERVICE_NAME: todo-api
         LOG_LEVEL: INFO
 
+Api:
+  Cors:
+      AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+      AllowHeaders: "'Content-Type,Authorization'"
+      AllowOrigins: "'*'"
+  Auth:
+    DefaultAuthorizer: CognitoAuthorizer
+    Authorizers:
+      CognitoAuthorizer:
+        UserPoolArn: !GetAtt TodoUserPool.Arn
+      
 Resources:
+  # Cognito User Pool
+    TodoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      ClientName: !Sub '${AWS::StackName}-users'
+      AutoVerifiedAttributes:
+        - email
+      UsernameAttributes:
+        - email
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: true
+          Mutable: false
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+
+  # Cognito User Client Pool
+    TodoUserPoolClient:
+    Type: AWS::Serverless::Function
+    Properties:
+      ClientName: !Sub '${AWS::StackName}-client'
+      UserPoolId: !Ref TodoUserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      PreventUserExistenceErrors: ENABLED
+
+  # DynamoDB
   TodoTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -40,17 +90,6 @@ Resources:
               KeyType: RANGE
           Projection:
             ProjectionType: ALL
-
-  TodoUserPoolClient:
-    Type: AWS::Serverless::Function
-    Properties:
-      ClientName: !Sub '${AWS::StackName}-client'
-      UserPoolId: !Ref TodoUserPool
-      GenerateSecret: false
-      ExplicitAuthFlows:
-        - ALLOW_USER_PASSWORD_AUTH
-        - ALLOW_REFRESH_TOKEN_AUTH
-      PreventUserExistenceErrors: ENABLED
 
   CreateTodoFunction:
     Type: AWS::Serverless::Function
