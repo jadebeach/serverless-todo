@@ -36,7 +36,7 @@ def lambda_handler(event, context):
         sort_by = params.get('sortBy', 'dueDate')
 
         # ユーザーID取得（後でCognitoから）
-        user_id = 'test-user-001'
+        user_id = get_user_id_from_event(event)
 
         # TODO: どのテーブル/インデックスを使うか決める
         # sortBy='dueDate'の場合はGSI1、'createdAt'の場合はメインテーブル
