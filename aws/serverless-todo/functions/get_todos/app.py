@@ -1,5 +1,8 @@
-import json
 import os
+import sys
+import json
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from common.auth_helper import get_user_id_from_event
 import boto3
 from boto3.dynamodb.conditions import Key
 
@@ -72,8 +75,10 @@ def lambda_handler(event, context):
 
         # TODO: ステータスでフィルタリング（オプション）
         if status_filter:
+            print(f"Filtering by status: {status_filter}")
+            print(f"Before filter: {len(items)} items")
             items = [item for item in items if item.get('status') == status_filter]
-
+            print(f"After filter: {len(items)} items")
         # レスポンス用にDynamoDB内部キーを除外
         clean_items = []
         for item in items:

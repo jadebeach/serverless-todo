@@ -1,7 +1,10 @@
+import os
+import sys
 import json
 import uuid
-import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 import boto3
+from common.auth_helper import get_user_id_from_event
 from datetime import datetime
 
 # DynamoDBクライアント初期化
@@ -22,16 +25,13 @@ def create_response(status_code, body):
     }
 
 def lambda_handler(event, context):
-    """Todo作成のLambdaハンドラ"""
-    
+
     print(f"Received event: {json.dumps(event)}")
     
     try:
-        # リクエストボディをパース
         body = json.loads(event['body'])
         print(f"Parsed body: {body}")
         
-        # バリデーション: 必須フィールド
         required_fields = ['title', 'dueDate', 'priority']
         for field in required_fields:
             if field not in body or not body[field]:
@@ -39,21 +39,17 @@ def lambda_handler(event, context):
                     'error': f'Missing required field: {field}'
                 })
         
-        # priorityの値チェック
         valid_priorities = ['HIGH', 'MEDIUM', 'LOW']
         if body['priority'] not in valid_priorities:
             return create_response(400, {
                 'error': f'Invalid priority. Must be one of: {valid_priorities}'
             })
         
-        # ユーザーID（後でCognitoから取得）
-        user_id = 'test-user-001'
+        user_id = get_user_id_from_event(event)
         
-        # タスクデータ作成
         task_id = str(uuid.uuid4())
         current_time = datetime.utcnow().isoformat() + 'Z'
         
-        # DynamoDBアイテム
         item = {
             'PK': f'USER#{user_id}',
             'SK': f'TODO#{current_time}#{task_id}',
@@ -68,15 +64,12 @@ def lambda_handler(event, context):
             'createdAt': current_time,
             'updatedAt': current_time
         }
-        
         print(f"Saving item: {json.dumps(item, default=str)}")
         
-        # DynamoDBに保存
         table.put_item(Item=item)
         
         print("Successfully saved to DynamoDB")
         
-        # 成功レスポンス
         return create_response(201, {
             'message': 'Todo created successfully',
             'todo': item

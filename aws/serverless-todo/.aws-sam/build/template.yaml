@@ -9,7 +9,64 @@ Globals:
       Variables:
         POWERTOOLS_SERVICE_NAME: todo-api
         LOG_LEVEL: INFO
+  Api:
+    Cors:
+      AllowMethods: '''GET,POST,PUT,DELETE,OPTIONS'''
+      AllowHeaders: '''Content-Type,Authorization'''
+      AllowOrigin: '''*'''
+    Auth:
+      DefaultAuthorizer: CognitoAuthorizer
+      Authorizers:
+        CognitoAuthorizer:
+          UserPoolArn:
+            Fn::GetAtt:
+            - TodoUserPool
+            - Arn
 Resources:
+  CommonLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: common_layer
+      ContentUri: layers/common_layer/
+      CompatibleRuntimes:
+      - python3.11
+  TodoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName:
+        Fn::Sub: ${AWS::StackName}-users
+      AutoVerifiedAttributes:
+      - email
+      UsernameAttributes:
+      - email
+      Schema:
+      - Name: email
+        AttributeDataType: String
+        Required: true
+        Mutable: false
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+        - Name: verified_email
+          Priority: 1
+  TodoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName:
+        Fn::Sub: ${AWS::StackName}-client
+      UserPoolId:
+        Ref: TodoUserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+      - ALLOW_USER_PASSWORD_AUTH
+      - ALLOW_REFRESH_TOKEN_AUTH
+      PreventUserExistenceErrors: ENABLED
   TodoTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -58,6 +115,8 @@ Resources:
           Properties:
             Path: /todos
             Method: post
+      Layers:
+      - Ref: CommonLayer
     Metadata:
       SamResourceId: CreateTodoFunction
   GetTodosFunction:
@@ -79,9 +138,65 @@ Resources:
           Properties:
             Path: /todos
             Method: get
+      Layers:
+      - Ref: CommonLayer
     Metadata:
       SamResourceId: GetTodosFunction
+  UpdateTodoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: UpdateTodoFunction
+      Handler: app.lambda_handler
+      Environment:
+        Variables:
+          TABLE_NAME:
+            Ref: TodoTable
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: TodoTable
+      Events:
+        UpdateTodo:
+          Type: Api
+          Properties:
+            Path: /todos/{taskId}
+            Method: put
+      Layers:
+      - Ref: CommonLayer
+    Metadata:
+      SamResourceId: UpdateTodoFunction
+  DeleteTodoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: DeleteTodoFunction
+      Handler: app.lambda_handler
+      Environment:
+        Variables:
+          TABLE_NAME:
+            Ref: TodoTable
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: TodoTable
+      Events:
+        DeleteTodo:
+          Type: Api
+          Properties:
+            Path: /todos/{taskId}
+            Method: delete
+      Layers:
+      - Ref: CommonLayer
+    Metadata:
+      SamResourceId: DeleteTodoFunction
 Outputs:
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value:
+      Ref: TodoUserPool
+  UserPoolClientId:
+    Description: Cognito User Pool Client ID
+    Value:
+      Ref: TodoUserPoolClient
   TodoTableName:
     Description: DynamoDB Table Name
     Value:

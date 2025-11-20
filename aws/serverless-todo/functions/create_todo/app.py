@@ -1,7 +1,10 @@
+import os
+import sys
 import json
 import uuid
-import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 import boto3
+from common.auth_helper import get_user_id_from_event
 from datetime import datetime
 
 # DynamoDBクライアント初期化
