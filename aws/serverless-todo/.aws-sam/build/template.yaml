@@ -14,22 +14,7 @@ Globals:
       AllowMethods: '''GET,POST,PUT,DELETE,OPTIONS'''
       AllowHeaders: '''Content-Type,Authorization'''
       AllowOrigin: '''*'''
-    Auth:
-      DefaultAuthorizer: CognitoAuthorizer
-      Authorizers:
-        CognitoAuthorizer:
-          UserPoolArn:
-            Fn::GetAtt:
-            - TodoUserPool
-            - Arn
 Resources:
-  CommonLayer:
-    Type: AWS::Lambda::LayerVersion
-    Properties:
-      LayerName: common_layer
-      ContentUri: layers/common_layer/
-      CompatibleRuntimes:
-      - python3.11
   TodoUserPool:
     Type: AWS::Cognito::UserPool
     Properties:
@@ -115,8 +100,6 @@ Resources:
           Properties:
             Path: /todos
             Method: post
-      Layers:
-      - Ref: CommonLayer
     Metadata:
       SamResourceId: CreateTodoFunction
   GetTodosFunction:
@@ -138,8 +121,6 @@ Resources:
           Properties:
             Path: /todos
             Method: get
-      Layers:
-      - Ref: CommonLayer
     Metadata:
       SamResourceId: GetTodosFunction
   UpdateTodoFunction:
@@ -161,8 +142,6 @@ Resources:
           Properties:
             Path: /todos/{taskId}
             Method: put
-      Layers:
-      - Ref: CommonLayer
     Metadata:
       SamResourceId: UpdateTodoFunction
   DeleteTodoFunction:
@@ -184,8 +163,6 @@ Resources:
           Properties:
             Path: /todos/{taskId}
             Method: delete
-      Layers:
-      - Ref: CommonLayer
     Metadata:
       SamResourceId: DeleteTodoFunction
 Outputs:

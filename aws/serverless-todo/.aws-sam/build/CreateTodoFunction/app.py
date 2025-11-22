@@ -1,52 +1,55 @@
-import os
-import sys
 import json
 import uuid
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+import os
 import boto3
-from common.auth_helper import get_user_id_from_event
 from datetime import datetime
 
-# DynamoDBクライアント初期化
+# DynamoDBクライアント
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table(os.environ['TABLE_NAME'])
 
-def create_response(status_code, body):
-    """API Gatewayレスポンスを生成"""
-    return {
-        'statusCode': status_code,
-        'headers': {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-            'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
-        },
-        'body': json.dumps(body, ensure_ascii=False)
-    }
-
 def lambda_handler(event, context):
-
-    print(f"Received event: {json.dumps(event)}")
+    """タスク作成"""
+    
+    print(f"Event: {json.dumps(event)}")
     
     try:
+        # リクエストボディ解析
         body = json.loads(event['body'])
-        print(f"Parsed body: {body}")
+        print(f"Body: {body}")
         
-        required_fields = ['title', 'dueDate', 'priority']
-        for field in required_fields:
-            if field not in body or not body[field]:
-                return create_response(400, {
-                    'error': f'Missing required field: {field}'
-                })
+        # 必須フィールドチェック
+        if 'title' not in body or not body['title']:
+            return {
+                'statusCode': 400,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'error': 'title is required'})
+            }
         
-        valid_priorities = ['HIGH', 'MEDIUM', 'LOW']
-        if body['priority'] not in valid_priorities:
-            return create_response(400, {
-                'error': f'Invalid priority. Must be one of: {valid_priorities}'
-            })
+        if 'dueDate' not in body or not body['dueDate']:
+            return {
+                'statusCode': 400,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'error': 'dueDate is required'})
+            }
         
-        user_id = get_user_id_from_event(event)
+        if 'priority' not in body or not body['priority']:
+            return {
+                'statusCode': 400,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'error': 'priority is required'})
+            }
         
+        # priorityチェック
+        if body['priority'] not in ['HIGH', 'MEDIUM', 'LOW']:
+            return {
+                'statusCode': 400,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'error': 'priority must be HIGH, MEDIUM, or LOW'})
+            }
+        
+        # データ作成
+        user_id = 'test-user-001'
         task_id = str(uuid.uuid4())
         current_time = datetime.utcnow().isoformat() + 'Z'
         
@@ -64,26 +67,50 @@ def lambda_handler(event, context):
             'createdAt': current_time,
             'updatedAt': current_time
         }
-        print(f"Saving item: {json.dumps(item, default=str)}")
         
+        print(f"Saving: {json.dumps(item, default=str)}")
+        
+        # DynamoDB保存
         table.put_item(Item=item)
         
-        print("Successfully saved to DynamoDB")
+        print("Success!")
         
-        return create_response(201, {
-            'message': 'Todo created successfully',
-            'todo': item
-        })
+        # レスポンス
+        return {
+            'statusCode': 201,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps({
+                'message': 'Task created successfully',
+                'todo': {
+                    'taskId': item['taskId'],
+                    'title': item['title'],
+                    'description': item['description'],
+                    'dueDate': item['dueDate'],
+                    'priority': item['priority'],
+                    'status': item['status'],
+                    'createdAt': item['createdAt'],
+                    'updatedAt': item['updatedAt']
+                }
+            }, ensure_ascii=False)
+        }
         
     except json.JSONDecodeError as e:
         print(f"JSON decode error: {e}")
-        return create_response(400, {'error': 'Invalid JSON format'})
+        return {
+            'statusCode': 400,
+            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'error': 'Invalid JSON'})
+        }
     
     except Exception as e:
-        print(f"Unexpected error: {str(e)}")
+        print(f"Error: {str(e)}")
         import traceback
         print(traceback.format_exc())
-        return create_response(500, {
-            'error': 'Internal server error',
-            'message': str(e)
-        })
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'error': 'Internal server error', 'details': str(e)})
+        }

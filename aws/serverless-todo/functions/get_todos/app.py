@@ -1,8 +1,5 @@
-import os
-import sys
 import json
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from common.auth_helper import get_user_id_from_event
+import os
 import boto3
 from boto3.dynamodb.conditions import Key
 
@@ -10,79 +7,58 @@ from boto3.dynamodb.conditions import Key
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table(os.environ['TABLE_NAME'])
 
-def create_response(status_code, body):
-    return {
-        'statusCode': status_code,
-        'headers': {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*'
-        },
-        'body': json.dumps(body, ensure_ascii=False)
-    }
-
 def lambda_handler(event, context):
-    """
-    タスク一覧取得のLambdaハンドラ
-
-    クエリパラメータ:
-    - status: PENDING|COMPLETED (オプション)
-    - limit: 取得件数（デフォルト20）
-    - sortBy: createdAt|dueDate (デフォルトdueDate)
-    - lastKey: ページネーション用（Base64エンコード済みJSON）
-    """
-
+    """タスク一覧取得"""
+    
+    print(f"Event: {json.dumps(event)}")
+    
     try:
-        # クエリパラメータ取得
+        # クエリパラメータ
         params = event.get('queryStringParameters') or {}
         status_filter = params.get('status')
         limit = int(params.get('limit', 20))
         sort_by = params.get('sortBy', 'dueDate')
-
-        # ユーザーID取得（後でCognitoから）
-        user_id = get_user_id_from_event(event)
-
-        # TODO: どのテーブル/インデックスを使うか決める
-        # sortBy='dueDate'の場合はGSI1、'createdAt'の場合はメインテーブル
-
+        
+        print(f"Params - status: {status_filter}, limit: {limit}, sortBy: {sort_by}")
+        
+        # ユーザーID（固定）
+        user_id = 'test-user-001'
+        
+        # クエリ構築
         if sort_by == 'dueDate':
-            # GSI1を使って期限順に取得
+            # GSI1で期限順
             query_params = {
                 'IndexName': 'GSI1',
-                'KeyConditionExpression': Key('GSI1PK').eq(f'USER#{user_id}'),  # GSI1PKを指定
+                'KeyConditionExpression': Key('GSI1PK').eq(f'USER#{user_id}'),
                 'Limit': limit,
-                'ScanIndexForward': True  # 昇順（期限が近い順）
+                'ScanIndexForward': True
             }
         else:
-            # メインテーブルで作成日時順
+            # メインテーブルで作成日順
             query_params = {
-                'KeyConditionExpression': Key('PK').eq(f'USER#{user_id}'),  # PKを指定
+                'KeyConditionExpression': Key('PK').eq(f'USER#{user_id}'),
                 'Limit': limit,
-                'ScanIndexForward': False  # 降順（登録が新しい順）
+                'ScanIndexForward': False
             }
-
-        # ページネーション対応
-        last_key = params.get('lastKey')
-        if last_key:
-            import base64
-            # TODO: Base64デコードしてExclusiveStartKeyに設定
-            decoded_key = json.loads(base64.b64decode(last_key))
-            query_params['ExclusiveStartKey'] = decoded_key
-
-        # DynamoDBクエリ実行
+        
+        print(f"Query: {query_params}")
+        
+        # DynamoDBクエリ
         response = table.query(**query_params)
-
         items = response.get('Items', [])
-
-        # TODO: ステータスでフィルタリング（オプション）
+        
+        print(f"Retrieved {len(items)} items")
+        
+        # ステータスフィルタ
         if status_filter:
             print(f"Filtering by status: {status_filter}")
-            print(f"Before filter: {len(items)} items")
             items = [item for item in items if item.get('status') == status_filter]
             print(f"After filter: {len(items)} items")
-        # レスポンス用にDynamoDB内部キーを除外
+        
+        # レスポンス用に整形
         clean_items = []
         for item in items:
-            clean_item = {
+            clean_items.append({
                 'taskId': item['taskId'],
                 'title': item['title'],
                 'description': item.get('description', ''),
@@ -91,31 +67,30 @@ def lambda_handler(event, context):
                 'status': item['status'],
                 'createdAt': item['createdAt'],
                 'updatedAt': item['updatedAt']
-            }
-            clean_items.append(clean_item)
-
-        # 次ページ用のキー
+            })
+        
         result = {
             'items': clean_items,
             'count': len(clean_items)
         }
-
-        # LastEvaluatedKeyがある場合（続きがある）
-        if 'LastEvaluatedKey' in response:
-            import base64
-            # TODO: Base64エンコードしてレスポンスに含める
-            next_key = base64.b64encode(
-                json.dumps(response['LastEvaluatedKey']).encode()
-            ).decode()
-            result['nextKey'] = next_key
-
-        return create_response(200, result)
-
+        
+        print(f"Returning {len(clean_items)} items")
+        
+        return {
+            'statusCode': 200,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps(result, ensure_ascii=False)
+        }
+        
     except Exception as e:
         print(f"Error: {str(e)}")
         import traceback
         print(traceback.format_exc())
-        return create_response(500, {
-            'error': 'Internal server error',
-            'message': str(e)
-        })
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'error': 'Internal server error', 'details': str(e)})
+        }
